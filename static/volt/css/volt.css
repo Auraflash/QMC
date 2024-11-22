@@ -1,0 +1,70 @@
+/* Basic Volt theme styles */
+:root {
+    --volt-primary: #262B40;
+    --volt-secondary: #5c6ca5;
+    --volt-success: #28a745;
+    --volt-info: #17a2b8;
+    --volt-warning: #ffc107;
+    --volt-danger: #dc3545;
+    --volt-light: #f8f9fa;
+    --volt-dark: #343a40;
+}
+
+/* Typography */
+body {
+    font-family: "Inter", sans-serif;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #4A5073;
+    background-color: #F5F8FB;
+}
+
+/* Cards */
+.card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    word-wrap: break-word;
+    background-color: #fff;
+    background-clip: border-box;
+    border: 0.0625rem solid rgba(46, 54, 80, 0.125);
+    border-radius: 0.5rem;
+}
+
+/* Buttons */
+.btn {
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    color: #ffffff;
+    background-color: var(--volt-primary);
+    border-color: var(--volt-primary);
+}
+
+/* Forms */
+.form-control {
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+/* Navigation */
+.navbar-theme-primary {
+    background-color: var(--volt-primary);
+}
+
+.sidebar {
+    background-color: var(--volt-primary);
+}
+
+/* Utilities */
+.text-primary { color: var(--volt-primary) !important; }
+.bg-primary { background-color: var(--volt-primary) !important; }
+.border-primary { border-color: var(--volt-primary) !important; } 
