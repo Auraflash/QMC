@@ -1,0 +1,267 @@
+{% extends 'web/base.html' %}
+{% load static %}
+{% load form_tags %}
+
+{% block authenticated_content %}
+<div class="container">
+    {% if messages %}
+    <div class="messages mb-3">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- Add Customer Form -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Add New Customer</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+                        {% for field in form %}
+                        <div class="mb-3">
+                            <label for="{{ field.id_for_label }}" class="form-label">
+                                {{ field.label }}
+                                {% if field.field.required %}*{% endif %}
+                            </label>
+                            {{ field|addclass:"form-control" }}
+                            {% if field.help_text %}
+                            <small class="form-text text-muted">{{ field.help_text }}</small>
+                            {% endif %}
+                            {% if field.errors %}
+                            <div class="alert alert-danger mt-1">
+                                {{ field.errors }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        <button type="submit" class="btn btn-primary">Add Customer</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Customer List -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5>Customer List</h5>
+                    <div class="form-inline">
+                        <input type="text" id="customerSearch" class="form-control form-control-sm" placeholder="Search customers...">
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover" id="customerTable">
+                            <thead>
+                                <tr>
+                                    <th>Account Number</th>
+                                    <th>Customer Name</th>
+                                    <th>Contact Person</th>
+                                    <th>Phone</th>
+                                    <th>Current Holdings</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if customers %}
+                                    {% for customer in customers %}
+                                    <tr>
+                                        <td>{{ customer.account_number }}</td>
+                                        <td>{{ customer.name }}</td>
+                                        <td>{{ customer.contact_person }}</td>
+                                        <td>{{ customer.phone_number }}</td>
+                                        <td>{{ customer.get_total_holdings }}</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-info" onclick="viewCustomerDetails('{{ customer.account_number }}')">
+                                                View
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="6" class="text-center">No customers found</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Details Modal -->
+<div class="modal fade" id="customerDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Customer Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="customerDetailsContent">
+                <!-- Content will be loaded dynamically -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Force a fresh load of customers on page load
+    refreshCustomerList();
+    
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            try {
+                const response = await fetch(window.location.pathname, {
+                    method: 'POST',
+                    body: new FormData(form),
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Show success message
+                    toastr.success(data.message);
+                    
+                    // Clear the form
+                    form.reset();
+                    
+                    // Update table with new data
+                    updateCustomerTable(data.customers);
+                    
+                    // Force a refresh of the customer list
+                    await refreshCustomerList();
+                } else {
+                    toastr.error(data.message || 'Error adding customer');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                toastr.error('Error adding customer');
+            }
+        });
+    }
+    
+    // Search functionality
+    const searchInput = document.getElementById('customerSearch');
+    if (searchInput) {
+        searchInput.addEventListener('keyup', function() {
+            const searchText = this.value.toLowerCase();
+            const rows = document.querySelectorAll('#customerTable tbody tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchText) ? '' : 'none';
+            });
+        });
+    }
+});
+
+// Function to update the customer table
+function updateCustomerTable(customers) {
+    const tableBody = document.querySelector('#customerTable tbody');
+    if (tableBody && customers) {
+        let newHtml = '';
+        customers.forEach(customer => {
+            newHtml += `
+                <tr>
+                    <td>${customer.account_number}</td>
+                    <td>${customer.name}</td>
+                    <td>${customer.contact_person || ''}</td>
+                    <td>${customer.phone_number || ''}</td>
+                    <td>${customer.total_holdings}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info" onclick="viewCustomerDetails('${customer.account_number}')">
+                            View
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        tableBody.innerHTML = newHtml;
+    }
+}
+
+// Function to refresh the customer list
+async function refreshCustomerList() {
+    try {
+        const response = await fetch(window.location.pathname + '?refresh=' + new Date().getTime());
+        const text = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/html');
+        const newTableBody = doc.querySelector('#customerTable tbody');
+        const currentTableBody = document.querySelector('#customerTable tbody');
+        
+        if (newTableBody && currentTableBody) {
+            currentTableBody.innerHTML = newTableBody.innerHTML;
+        }
+    } catch (error) {
+        console.error('Error refreshing customer list:', error);
+    }
+}
+
+// Add this function to handle customer details view
+function viewCustomerDetails(accountNumber) {
+    const modal = new bootstrap.Modal(document.getElementById('customerDetailsModal'));
+    const contentDiv = document.getElementById('customerDetailsContent');
+    
+    // Show loading state
+    contentDiv.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"></div></div>';
+    modal.show();
+    
+    // Fetch customer details
+    fetch(`/api/customer-details/${accountNumber}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                contentDiv.innerHTML = `
+                    <div class="container-fluid">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Basic Information</h6>
+                                <p><strong>Name:</strong> ${data.customer.name}</p>
+                                <p><strong>Account:</strong> ${data.customer.account_number}</p>
+                                <p><strong>Contact:</strong> ${data.customer.contact_person || 'N/A'}</p>
+                                <p><strong>Phone:</strong> ${data.customer.phone_number || 'N/A'}</p>
+                                <p><strong>Email:</strong> ${data.customer.email || 'N/A'}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Cylinder Information</h6>
+                                <p><strong>Current Holdings:</strong> ${data.customer.total_holdings}</p>
+                                <p><strong>Last Transaction:</strong> ${data.customer.last_transaction}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                contentDiv.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+            }
+        })
+        .catch(error => {
+            contentDiv.innerHTML = '<div class="alert alert-danger">Error loading customer details</div>';
+        });
+}
+</script>
+{% endblock %}
+
+{% block extra_head %}
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+{% endblock %} 

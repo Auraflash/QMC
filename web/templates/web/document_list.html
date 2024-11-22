@@ -1,0 +1,49 @@
+{% extends 'web/base.html' %}
+
+{% block title %}Document List - QMC{% endblock %}
+
+{% block authenticated_content %}
+<div class="document-list">
+    <div class="header">
+        <h1>Document List</h1>
+        <a href="{% url 'document_create' %}" class="btn btn-primary">Add New Document</a>
+    </div>
+
+    <div class="filters">
+        <!-- We'll add filters here later -->
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Document Number</th>
+                <th>Type</th>
+                <th>Date</th>
+                <th>Movements</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for doc in documents %}
+            <tr>
+                <td>{{ doc.document_number }}</td>
+                <td>{{ doc.get_document_type_display }}</td>
+                <td>{{ doc.document_date }}</td>
+                <td>
+                    {% for movement in doc.movements.all %}
+                        {{ movement.get_movement_type_display }}: {{ movement.quantity }}<br>
+                    {% endfor %}
+                </td>
+                <td>
+                    <!-- We'll add edit/delete actions here later -->
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5">No documents found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %} 

@@ -1,0 +1,765 @@
+{% extends 'web/base.html' %}
+{% load static %}
+
+{% block authenticated_content %}
+<input type="hidden" id="userIsAdmin" value="{{ user.is_staff }}">
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- Customer Search Section -->
+        <div class="col-md-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Customer Search</h5>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <input type="text" id="accountNumber" class="form-control" placeholder="Enter Account Number">
+                        <button class="btn btn-primary mt-2" onclick="searchCustomer()">Search</button>
+                    </div>
+                    <div id="customerInfo" class="mt-3">
+                        {% if current_holdings is not None %}
+                        <div class="alert alert-info">
+                            <h6>Current Total Holdings: {{ current_holdings }}</h6>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Document Management Section -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5>Document Management</h5>
+                    <div class="form-inline">
+                        <input type="month" id="documentMonthFilter" class="form-control form-control-sm" onchange="updateDocumentList()">
+                    </div>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-success mb-3" onclick="showNewDocumentForm()">New Document</button>
+                    <div id="documentForm" style="display: none;">
+                        <form id="newDocumentForm" onsubmit="saveDocument(event)">
+                            {% csrf_token %}
+                            <input type="hidden" name="document_id" id="document_id">
+                            <div class="form-group mb-3">
+                                <label>Document Number</label>
+                                <input type="text" name="document_number" class="form-control" {% if form.instance.pk %}readonly{% endif %}>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label>Document Type</label>
+                                <select name="document_type" class="form-control" required>
+                                    <option value="">Select Type</option>
+                                    <option value="IN">Tax Invoice</option>
+                                    <option value="NR">Empty Return Slip</option>
+                                </select>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label>Document Date</label>
+                                <input type="date" name="document_date" class="form-control" required>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label>Customer Account</label>
+                                <input type="text" name="customer_account" class="form-control" readonly>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label>Cylinders Received</label>
+                                <input type="number" name="cylinders_received" class="form-control" min="0">
+                            </div>
+                            <div class="form-group mb-3">
+                                <label>Cylinders Returned</label>
+                                <input type="number" name="cylinders_returned" class="form-control" min="0">
+                            </div>
+                            <button type="submit" class="btn btn-primary" id="saveButton">Save Document</button>
+                            <button type="button" class="btn btn-warning" id="updateButton" style="display: none;">Apply Changes</button>
+                            <button type="button" class="btn btn-secondary" onclick="hideDocumentForm()">Cancel</button>
+                        </form>
+                    </div>
+                    <div id="documentList">
+                        {% if documents %}
+                            <table class="table table-sm table-striped" style="font-size: 0.85rem; line-height: 1;">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 15%; padding: 0.3rem;">Document #</th>
+                                        <th style="width: 15%; padding: 0.3rem;">Type</th>
+                                        <th style="width: 15%; padding: 0.3rem;">Date</th>
+                                        <th style="width: 10%; padding: 0.3rem;">Received</th>
+                                        <th style="width: 10%; padding: 0.3rem;">Returned</th>
+                                        {% if user.is_staff %}
+                                        <th style="width: 15%; padding: 0.3rem;">Actions</th>
+                                        {% endif %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for doc in documents %}
+                                    <tr>
+                                        <td style="padding: 0.3rem; vertical-align: middle;">{{ doc.document_number }}</td>
+                                        <td style="padding: 0.3rem; vertical-align: middle;">{{ doc.get_document_type_display }}</td>
+                                        <td style="padding: 0.3rem; vertical-align: middle;">{{ doc.document_date|date:"Y-m-d" }}</td>
+                                        <td style="padding: 0.3rem; vertical-align: middle;">
+                                            {% for movement in doc.movements.all %}
+                                                {% if movement.movement_type == 'R' %}
+                                                    {{ movement.quantity }}
+                                                {% endif %}
+                                            {% endfor %}
+                                        </td>
+                                        <td style="padding: 0.3rem; vertical-align: middle;">
+                                            {% for movement in doc.movements.all %}
+                                                {% if movement.movement_type == 'E' %}
+                                                    {{ movement.quantity }}
+                                                {% endif %}
+                                            {% endfor %}
+                                        </td>
+                                        {% if user.is_staff %}
+                                        <td style="padding: 0.3rem; vertical-align: middle;">
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-info btn-sm py-0 px-2" style="font-size: 0.7rem; line-height: 1.2;" onclick="editDocument('{{ doc.document_number }}')">Edit</button>
+                                                <button class="btn btn-danger btn-sm py-0 px-2" style="font-size: 0.7rem; line-height: 1.2;" onclick="deleteDocument('{{ doc.document_number }}', '{{ doc.id }}')">Delete</button>
+                                            </div>
+                                        </td>
+                                        {% endif %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            {% if account_number %}
+                                <div class="alert alert-info">No documents found for this customer.</div>
+                            {% else %}
+                                <div class="alert alert-info">Please search for a customer first.</div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cylinder Holdings Section -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5>Cylinder Holdings</h5>
+                    <div class="d-flex gap-2">
+                        <select id="yearFilter" class="form-select form-select-sm" style="width: auto;" onchange="updateHoldingsGraph()">
+                            <!-- Will be populated dynamically -->
+                        </select>
+                        <div class="btn-group btn-group-sm">
+                            <button id="showTotalBtn" class="btn btn-outline-primary active" onclick="toggleHoldingsView('total')">Total Holdings</button>
+                            <button id="showCustomerBtn" class="btn btn-outline-primary" onclick="toggleHoldingsView('customer')">Customer Holdings</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="mt-3" style="height: 400px;">
+                        <canvas id="mainChart"></canvas>
+                    </div>
+                    <div id="chartLegend" class="mt-3 text-center">
+                        <!-- Will show current holdings value -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete document <span id="deleteDocumentNumber"></span>?</p>
+                <p class="text-danger">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Initialize toastr first
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize toastr options
+    toastr.options = {
+        "closeButton": true,
+        "progressBar": true,
+        "positionClass": "toast-top-right",
+        "timeOut": "3000"
+    };
+
+    // Initialize event listeners
+    const accountNumberInput = document.getElementById('accountNumber');
+    if (accountNumberInput) {
+        accountNumberInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchCustomer();
+            }
+        });
+    }
+
+    // Initialize document type change handler
+    const docTypeSelect = document.querySelector('[name="document_type"]');
+    if (docTypeSelect) {
+        docTypeSelect.addEventListener('change', handleDocumentTypeChange);
+    }
+});
+
+// Define all functions in global scope
+window.searchCustomer = function() {
+    const accountNumber = document.getElementById('accountNumber').value;
+    if (!accountNumber) {
+        toastr.warning('Please enter an account number');
+        return;
+    }
+
+    fetch(`/api/customer-info/?account_number=${accountNumber}`)
+        .then(response => response.json())
+        .then(data => {
+            const customerInfo = document.getElementById('customerInfo');
+            
+            if (data.success) {
+                customerInfo.innerHTML = `
+                    <div class="alert alert-success">
+                        <h6>Customer Found:</h6>
+                        <p><strong>Name:</strong> ${data.customer.name}</p>
+                        <p><strong>Account:</strong> ${data.customer.account_number}</p>
+                        <p><strong>Current Holdings:</strong> ${data.customer.total_holdings}</p>
+                    </div>`;
+                
+                // Clear any existing month filter
+                document.getElementById('documentMonthFilter').value = '';
+                
+                // Update document list
+                updateDocumentList();
+            } else {
+                customerInfo.innerHTML = `
+                    <div class="alert alert-danger">
+                        Customer not found. Please check the account number and try again.
+                    </div>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('customerInfo').innerHTML = `
+                <div class="alert alert-danger">
+                    An error occurred while searching. Please try again.
+                </div>`;
+        });
+};
+
+window.showNewDocumentForm = function() {
+    const accountNumber = document.getElementById('accountNumber').value;
+    if (!accountNumber) {
+        toastr.warning('Please search for a customer first');
+        return;
+    }
+    
+    const isAdmin = document.getElementById('userIsAdmin').value === 'True';
+    if (!isAdmin) {
+        toastr.error('Only administrators can create new documents');
+        return;
+    }
+    
+    // Reset form
+    const form = document.getElementById('newDocumentForm');
+    form.reset();
+    document.getElementById('document_id').value = '';
+    
+    // Set customer account
+    const docNumberField = document.querySelector('[name="document_number"]');
+    const customerAccountField = document.querySelector('[name="customer_account"]');
+    const docTypeSelect = document.querySelector('[name="document_type"]');
+    const receivedField = document.querySelector('[name="cylinders_received"]');
+    const returnedField = document.querySelector('[name="cylinders_returned"]');
+    
+    // Reset and disable fields initially
+    docNumberField.readOnly = false;
+    docNumberField.value = '';
+    docNumberField.placeholder = '';
+    customerAccountField.value = accountNumber;
+    receivedField.disabled = true;
+    returnedField.disabled = true;
+    
+    // Show save button, hide update button
+    document.getElementById('saveButton').style.display = 'inline-block';
+    document.getElementById('updateButton').style.display = 'none';
+    
+    // Show form
+    document.getElementById('documentForm').style.display = 'block';
+    
+    // Add validation for document number input
+    docNumberField.addEventListener('input', function() {
+        const docType = docTypeSelect.value;
+        if (docType && !validateDocumentNumber(this.value, docType)) {
+            this.setCustomValidity(`Document number must start with ${docType} followed by 6 digits`);
+        } else {
+            this.setCustomValidity('');
+        }
+    });
+};
+
+// Add all your other functions to window object
+window.handleDocumentTypeChange = function() {
+    const docType = document.querySelector('[name="document_type"]').value;
+    const receivedField = document.querySelector('[name="cylinders_received"]');
+    const returnedField = document.querySelector('[name="cylinders_returned"]');
+    const docNumberField = document.querySelector('[name="document_number"]');
+    
+    // Clear fields
+    receivedField.value = '';
+    returnedField.value = '';
+    
+    if (docType === 'NR') {
+        // Empty Return Slip - only allow returns
+        receivedField.disabled = true;
+        returnedField.disabled = false;
+        docNumberField.placeholder = 'NR000000';
+    } else if (docType === 'IN') {
+        // Tax Invoice - allow both
+        receivedField.disabled = false;
+        returnedField.disabled = false;
+        docNumberField.placeholder = 'IN000000';
+    } else {
+        // No type selected
+        receivedField.disabled = true;
+        returnedField.disabled = true;
+        docNumberField.placeholder = '';
+    }
+}
+
+// Add this function to validate document number format
+function validateDocumentNumber(docNumber, docType) {
+    if (!docNumber) return false;
+    
+    const pattern = new RegExp(`^${docType}\\d{6}$`);
+    return pattern.test(docNumber);
+}
+
+// Add updateDocumentList function
+window.updateDocumentList = function() {
+    const accountNumber = document.getElementById('accountNumber').value;
+    const monthFilter = document.getElementById('documentMonthFilter').value;
+    
+    if (!accountNumber) return;
+    
+    // Show loading state
+    document.getElementById('documentList').innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    `;
+    
+    // Build URL with cache-busting parameter
+    let url = `/api/customer-documents/?account_number=${accountNumber}&_=${new Date().getTime()}`;
+    if (monthFilter) {
+        url += `&month=${monthFilter}`;
+    }
+    
+    console.log('Fetching documents:', {
+        url: url,
+        accountNumber: accountNumber,
+        monthFilter: monthFilter || 'none'
+    });
+    
+    // Force cache reload
+    fetch(url, {
+        cache: 'no-store',
+        headers: {
+            'Cache-Control': 'no-cache'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Received fresh document data:', {
+            success: data.success,
+            documentCount: data.documents?.length || 0,
+            filterApplied: data.filter_applied,
+            monthFilter: data.month_filter
+        });
+        
+        if (data.success) {
+            const documentList = document.getElementById('documentList');
+            if (!data.documents || data.documents.length === 0) {
+                documentList.innerHTML = `
+                    <div class="alert alert-info">
+                        ${data.filter_applied ? 
+                          'No documents found for this period.' : 
+                          'No documents found for this customer.'}
+                    </div>`;
+                return;
+            }
+            
+            let tableHtml = `
+                <table class="table table-sm table-striped" style="font-size: 0.85rem; line-height: 1;">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%; padding: 0.3rem;">Document #</th>
+                            <th style="width: 15%; padding: 0.3rem;">Type</th>
+                            <th style="width: 15%; padding: 0.3rem;">Date</th>
+                            <th style="width: 10%; padding: 0.3rem;">Received</th>
+                            <th style="width: 10%; padding: 0.3rem;">Returned</th>
+                            <th style="width: 15%; padding: 0.3rem;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+            
+            data.documents.forEach(doc => {
+                console.log('Rendering document:', {
+                    number: doc.document_number,
+                    type: doc.document_type,
+                    date: doc.document_date
+                });
+                
+                tableHtml += `
+                    <tr>
+                        <td style="padding: 0.3rem; vertical-align: middle;">${doc.document_number}</td>
+                        <td style="padding: 0.3rem; vertical-align: middle;">${doc.document_type}</td>
+                        <td style="padding: 0.3rem; vertical-align: middle;">${doc.document_date}</td>
+                        <td style="padding: 0.3rem; vertical-align: middle;">${doc.received || ''}</td>
+                        <td style="padding: 0.3rem; vertical-align: middle;">${doc.returned || ''}</td>
+                        <td style="padding: 0.3rem; vertical-align: middle;">
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-info btn-sm py-0 px-2" style="font-size: 0.7rem; line-height: 1.2;" onclick="editDocument('${doc.document_number}')">Edit</button>
+                                <button class="btn btn-danger btn-sm py-0 px-2" style="font-size: 0.7rem; line-height: 1.2;" onclick="deleteDocument('${doc.document_number}', '${doc.id}')">Delete</button>
+                            </div>
+                        </td>
+                    </tr>`;
+            });
+            
+            tableHtml += `
+                    </tbody>
+                </table>`;
+            
+            documentList.innerHTML = tableHtml;
+            console.log(`Rendered ${data.documents.length} documents to table`);
+        } else {
+            document.getElementById('documentList').innerHTML = `
+                <div class="alert alert-danger">
+                    ${data.message || 'Error loading documents'}
+                </div>`;
+        }
+    })
+    .catch(error => {
+        console.error('Error loading documents:', error);
+        document.getElementById('documentList').innerHTML = `
+            <div class="alert alert-danger">
+                Error loading documents. Please try again.
+            </div>`;
+    });
+};
+
+// Add editDocument function
+window.editDocument = function(documentNumber) {
+    fetch(`/api/document-details/${documentNumber}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const form = document.getElementById('newDocumentForm');
+                form.reset();
+                
+                // Fill form fields
+                document.getElementById('document_id').value = data.document.id;
+                document.querySelector('[name="document_number"]').value = data.document.document_number;
+                document.querySelector('[name="document_type"]').value = data.document.document_type;
+                document.querySelector('[name="document_date"]').value = data.document.document_date;
+                document.querySelector('[name="customer_account"]').value = data.document.customer_account;
+                
+                const receivedField = document.querySelector('[name="cylinders_received"]');
+                const returnedField = document.querySelector('[name="cylinders_returned"]');
+                
+                if (data.document.document_type === 'NR') {
+                    receivedField.value = '';
+                    receivedField.disabled = true;
+                    returnedField.value = data.document.cylinders_returned || '';
+                } else {
+                    receivedField.disabled = false;
+                    receivedField.value = data.document.cylinders_received || '';
+                    returnedField.value = data.document.cylinders_returned || '';
+                }
+                
+                // Show update button, hide save button
+                document.getElementById('saveButton').style.display = 'none';
+                document.getElementById('updateButton').style.display = 'inline-block';
+                
+                // Show form
+                document.getElementById('documentForm').style.display = 'block';
+            } else {
+                toastr.error(data.message || 'Error loading document');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            toastr.error('Error loading document. Please try again.');
+        });
+};
+
+// Add deleteDocument function
+window.deleteDocument = function(documentNumber, documentId) {
+    if (confirm(`Are you sure you want to delete document ${documentNumber}?`)) {
+        fetch(`/api/delete-document/${documentId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                toastr.success(data.message);
+                
+                // Update the document list with the new data
+                const documentList = document.getElementById('documentList');
+                if (!data.updated_documents || data.updated_documents.length === 0) {
+                    documentList.innerHTML = `
+                        <div class="alert alert-info">
+                            No documents found for this customer.
+                        </div>`;
+                } else {
+                    let tableHtml = `
+                        <table class="table table-sm table-striped" style="font-size: 0.85rem; line-height: 1;">
+                            <thead>
+                                <tr>
+                                    <th style="width: 15%; padding: 0.3rem;">Document #</th>
+                                    <th style="width: 15%; padding: 0.3rem;">Type</th>
+                                    <th style="width: 15%; padding: 0.3rem;">Date</th>
+                                    <th style="width: 10%; padding: 0.3rem;">Received</th>
+                                    <th style="width: 10%; padding: 0.3rem;">Returned</th>
+                                    <th style="width: 15%; padding: 0.3rem;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+                    
+                    data.updated_documents.forEach(doc => {
+                        tableHtml += `
+                            <tr>
+                                <td style="padding: 0.3rem; vertical-align: middle;">${doc.document_number}</td>
+                                <td style="padding: 0.3rem; vertical-align: middle;">${doc.document_type}</td>
+                                <td style="padding: 0.3rem; vertical-align: middle;">${doc.document_date}</td>
+                                <td style="padding: 0.3rem; vertical-align: middle;">${doc.received || ''}</td>
+                                <td style="padding: 0.3rem; vertical-align: middle;">${doc.returned || ''}</td>
+                                <td style="padding: 0.3rem; vertical-align: middle;">
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-info btn-sm py-0 px-2" style="font-size: 0.7rem; line-height: 1.2;" onclick="editDocument('${doc.document_number}')">Edit</button>
+                                        <button class="btn btn-danger btn-sm py-0 px-2" style="font-size: 0.7rem; line-height: 1.2;" onclick="deleteDocument('${doc.document_number}', '${doc.id}')">Delete</button>
+                                    </div>
+                                </td>
+                            </tr>`;
+                    });
+                    
+                    tableHtml += `
+                            </tbody>
+                        </table>`;
+                    
+                    documentList.innerHTML = tableHtml;
+                }
+                
+                // Update customer holdings if needed
+                updateCustomerInfo();
+            } else {
+                toastr.error(data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            toastr.error('Error deleting document. Please try again.');
+        });
+    }
+};
+
+// Replace the existing updateCustomerInfo function
+function updateCustomerInfo() {
+    const accountNumber = document.getElementById('accountNumber').value;
+    if (accountNumber) {
+        // Show loading state
+        const customerInfo = document.getElementById('customerInfo');
+        customerInfo.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        `;
+
+        // Force a fresh fetch of customer info
+        fetch(`/api/customer-info/?account_number=${accountNumber}&_=${new Date().getTime()}`, {
+            cache: 'no-store',
+            headers: {
+                'Cache-Control': 'no-cache'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                customerInfo.innerHTML = `
+                    <div class="alert alert-success">
+                        <h6>Customer Found:</h6>
+                        <p><strong>Name:</strong> ${data.customer.name}</p>
+                        <p><strong>Account:</strong> ${data.customer.account_number}</p>
+                        <p><strong>Current Holdings:</strong> ${data.customer.total_holdings}</p>
+                    </div>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error updating customer info:', error);
+            customerInfo.innerHTML = `
+                <div class="alert alert-danger">
+                    Error updating customer information.
+                </div>`;
+        });
+    }
+}
+
+// Add this call to updateCustomerInfo after any document changes
+// In the saveDocument function:
+if (data.success) {
+    toastr.success(data.message);
+    hideDocumentForm();
+    updateDocumentList();
+    updateCustomerInfo();
+}
+
+// In the deleteDocument function:
+if (data.success) {
+    toastr.success(data.message);
+    updateDocumentList();
+    updateCustomerInfo();
+}
+
+// In the updateDocument function:
+if (data.success) {
+    toastr.success(data.message);
+    hideDocumentForm();
+    updateDocumentList();
+    updateCustomerInfo();
+}
+
+// Modify the saveDocument function to include validation
+async function saveDocument(event) {
+    event.preventDefault();
+    
+    const form = document.getElementById('newDocumentForm');
+    const docType = form.querySelector('[name="document_type"]').value;
+    const docNumber = form.querySelector('[name="document_number"]').value;
+    
+    // Validate document number format
+    if (!validateDocumentNumber(docNumber, docType)) {
+        toastr.error(`Document number must start with ${docType} followed by 6 digits`);
+        return;
+    }
+    
+    // Additional validation for Empty Return Slip
+    if (docType === 'NR') {
+        const received = form.querySelector('[name="cylinders_received"]').value;
+        if (received && parseInt(received) > 0) {
+            toastr.error('Empty Return Slips cannot have cylinders received');
+            return;
+        }
+    }
+    
+    const formData = new FormData(form);
+    
+    try {
+        const response = await fetch('/api/save-document/', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            toastr.success(data.message);
+            hideDocumentForm();
+            updateDocumentList();
+            updateCustomerInfo();
+        } else {
+            toastr.error(data.message || 'Error saving document');
+        }
+    } catch (error) {
+        console.error('Error details:', error);
+        toastr.error('Error saving document. Please check the console for details.');
+    }
+}
+
+// Add this function to hide the document form
+function hideDocumentForm() {
+    document.getElementById('documentForm').style.display = 'none';
+    document.getElementById('newDocumentForm').reset();
+}
+
+// Add this function to show the document form
+function showNewDocumentForm() {
+    const accountNumber = document.getElementById('accountNumber').value;
+    if (!accountNumber) {
+        toastr.warning('Please search for a customer first');
+        return;
+    }
+    
+    // Reset form
+    const form = document.getElementById('newDocumentForm');
+    form.reset();
+    
+    // Set customer account
+    document.querySelector('[name="customer_account"]').value = accountNumber;
+    
+    // Show form
+    document.getElementById('documentForm').style.display = 'block';
+    
+    // Enable received field by default
+    document.querySelector('[name="cylinders_received"]').disabled = false;
+}
+
+// Add this function to handle document updates
+window.updateDocument = async function(event) {
+    event.preventDefault();
+    const form = document.getElementById('newDocumentForm');
+    const documentId = document.getElementById('document_id').value;
+    const formData = new FormData(form);
+    
+    try {
+        const response = await fetch(`/api/update-document/${documentId}/`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            toastr.success(data.message);
+            hideDocumentForm();
+            updateDocumentList();
+            updateCustomerInfo();
+        } else {
+            toastr.error(data.message || 'Error updating document');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        toastr.error('Error updating document. Please try again.');
+    }
+};
+
+// Update the form to handle both save and update
+document.getElementById('updateButton').onclick = function() {
+    updateDocument(event);
+};
+
+// Your other existing functions...
+</script>
+{% endblock %} 

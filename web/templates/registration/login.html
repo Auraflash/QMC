@@ -1,0 +1,77 @@
+{% extends 'web/base.html' %}
+{% load static %}
+{% load form_tags %}
+
+{% block unauthenticated_content %}
+<div class="container">
+    <div class="row justify-content-center form-bg-image">
+        <div class="col-12 d-flex align-items-center justify-content-center">
+            <div class="bg-white shadow border-0 rounded border-light p-4 p-lg-5 w-100 fmxw-500">
+                <div class="text-center text-md-center mb-4 mt-md-0">
+                    <h1 class="mb-3 h3">QMC Login</h1>
+                </div>
+                <form method="post" class="mt-4">
+                    {% csrf_token %}
+                    <!-- Form -->
+                    <div class="form-group mb-4">
+                        <label for="id_username">Username</label>
+                        <div class="input-group">
+                            <span class="input-group-text" id="basic-addon1">
+                                <i class="fas fa-user"></i>
+                            </span>
+                            {{ form.username|addclass:"form-control" }}
+                        </div>
+                        {% if form.username.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.username.errors }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <!-- End of Form -->
+                    <div class="form-group">
+                        <!-- Form -->
+                        <div class="form-group mb-4">
+                            <label for="id_password">Password</label>
+                            <div class="input-group">
+                                <span class="input-group-text" id="basic-addon2">
+                                    <i class="fas fa-lock"></i>
+                                </span>
+                                {{ form.password|addclass:"form-control" }}
+                            </div>
+                            {% if form.password.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.password.errors }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        <!-- End of Form -->
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-gray-800">Sign in</button>
+                    </div>
+                </form>
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger mt-3">
+                    {{ form.non_field_errors }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.form-bg-image {
+    background-image: url('https://demo.themesberg.com/volt-pro/assets/img/illustrations/signin.svg');
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+    min-height: 100vh;
+}
+.fmxw-500 {
+    max-width: 500px;
+}
+</style>
+{% endblock %} 
